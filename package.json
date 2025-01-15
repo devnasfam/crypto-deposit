@@ -21,6 +21,7 @@
     "firebase-admin": "^13.0.2",
     "moralis": "^2.27.2",
     "node-fetch": "^3.3.2",
+    "qrcode": "^1.5.4",
     "web3": "^4.16.0"
   }
 }

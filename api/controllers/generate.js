@@ -2,7 +2,7 @@ import { config } from "dotenv";
 import { ethers } from "ethers";
 import Moralis from "moralis";
 import { db } from "../firebase.js";
-
+import QRCode from "qrcode";
 config();
 
 const mnemonic = process.env.HD_WALLET_PHRASE;
@@ -34,6 +34,17 @@ async function addToMoralisStream(address) {
     } catch (error) {
         console.error("Error adding address to Moralis stream:", error.message);
         throw new Error("Failed to add address to Moralis stream.");
+    }
+}
+
+// Function to generate a QR code for a wallet address
+async function generateQRCode(address) {
+    try {
+        const qrCodeImage = await QRCode.toDataURL(address); // Generate QR code as a data URI
+        return qrCodeImage;
+    } catch (error) {
+        console.error("Error generating QR code:", error.message);
+        throw new Error("Failed to generate QR code.");
     }
 }
 
@@ -71,14 +82,17 @@ export const generateAddress = async (req, res) => {
             // Derive the wallet for the current index
             const wallet = deriveWallet(index);
 
-            // Update the user's wallets with the new EVM wallet
-            userWallets["EVM"] = {
-                address: String(wallet.address).toLowerCase(),
-                walletIndex: index,
-            };
-
             // Add the address to Moralis stream
             await addToMoralisStream(wallet.address);
+
+            const qrCodeImage = await generateQRCode(wallet.address);
+
+             // Update the user's wallets with the new EVM wallet
+             userWallets["EVM"] = {
+                address: String(wallet.address).toLowerCase(),
+                walletIndex: index,
+                qrCode: qrCodeImage,
+            };
 
             // Increment the shared index for EVM coins and update Firestore
             transaction.set(indexRef, { index: index + 1 });
