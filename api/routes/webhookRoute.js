@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { webhook } from "../controllers/webhook.js";
+import { handleDepositWebhook } from "../controllers/webhook.js";
 
 const webhookRouter = Router();
 
-webhookRouter.post('/', webhook);
+webhookRouter.post('/', handleDepositWebhook);
 
 export default webhookRouter;
