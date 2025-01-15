@@ -19,7 +19,7 @@ async function fetchTokenPrice(chainId) {
     const mockPrices = {
         "0xa4b1": 700, // Mock price for BNB in USD
     };
-    return mockPrices[chainId] || 0; // Return 0 if the chainId is unsupported
+    return 700; // Return 0 if the chainId is unsupported
 }
 
 // Mock conversion rates for testing purposes
@@ -66,6 +66,7 @@ export const handleDepositWebhook = async (req, res) => {
                     userId: userData?.id,
                     chainId,
                     status: "pending",
+                    type: 'crypto-deposit',
                     date,
                     createdAt: date,
                 });
