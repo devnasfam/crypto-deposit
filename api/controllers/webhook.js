@@ -133,7 +133,7 @@ export const handleDepositWebhook = async (req, res) => {
             const coinSymbol = getCoinSymbolByChainId(chainId);
             const myProvider = providers.find((coin) => coin.name === coinSymbol);
             const provider = new ethers.JsonRpcProvider(myProvider.url.main);
-            const wallet = ethers.Wallet(privateKey, provider);
+            const wallet = new ethers.Wallet(privateKey, provider);
             const walletBalance = await provider.getBalance(wallet.address);
 
             // Fetch current fee data
