@@ -91,6 +91,7 @@ export const handleDepositWebhook = async (req, res) => {
             // Fetch the token price and calculate the converted amount
             const tokenPriceUSD = await fetchTokenPrice(chainId);
             const amountEther = ethers.formatEther(value);
+            console.log("Amount received in Ether:", amountEther);
             const amountUSD = tokenPriceUSD * amountEther;
             const amountNGN = amountUSD * USD_TO_NGN_RATE;
 
