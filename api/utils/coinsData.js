@@ -16,7 +16,7 @@ export const getCoinsData = async () => {
             const coinPricesDoc = await coinPricesRef.get();
 
             if (!coinPricesDoc.exists) {
-                console.log(`${coinSymbol} data not found in Firestore`);
+                // console.log(`${coinSymbol} data not found in Firestore`);
                 return;
             }
 
@@ -41,11 +41,11 @@ export const getCoinsData = async () => {
                 if (existingCoinIndex > -1) {
                     // Replace the existing coin with the new data from Firestore
                     json.data[existingCoinIndex] = coin;
-                    console.log(`Replaced existing coin data for ${coinSymbol}`);
+                    // console.log(`Replaced existing coin data for ${coinSymbol}`);
                 } else {
                     // If the coin doesn't exist in Coinlore data, add it
                     json.data.push(coin);
-                    console.log(`Added new coin data for ${coinSymbol}`);
+                    // console.log(`Added new coin data for ${coinSymbol}`);
                 }
             } else {
                 console.log(`No price data found for ${coinSymbol} in Firestore.`);
@@ -56,7 +56,7 @@ export const getCoinsData = async () => {
         await Promise.all(promises);
 
         // Log the final fetched data for debugging
-        console.log("Final fetched data:", json.data);
+        // console.log("Final fetched data:", json.data);
 
         return json.data;
 
