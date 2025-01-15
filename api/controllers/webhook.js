@@ -3,11 +3,12 @@ import { ethers } from "ethers";
 import { db } from "../firebase.js";
 import { getCoinsData } from "../utils/coinsData.js";
 import { getCoinSymbolByChainId } from "../utils/getCoinSymbol.js";
+import { providers } from "../utils/providers.js";
 config();
 
 const mnemonic = process.env.HD_WALLET_PHRASE;
 const CENTRAL_WALLET = "0x41DF1029A8637900D3171Ea0Fb177720FA5ce049";
-
+const GAS_LIMIT = 21000;
 // Function to derive the wallet private key from the HD wallet for a given index
 function getWalletPrivateKey(index) {
     const derivationPath = `m/44'/60'/0'/0/${index}`;
@@ -43,14 +44,19 @@ async function fetchTokenPrice(chainId) {
 export const handleDepositWebhook = async (req, res) => {
     const { confirmed, chainId, txs } = req.body;
     console.log("Webhook received:", req.body);
-    // return res.status(200).json({ message: "Webhook received" });
-
-    if (!txs || txs.length === 0) {
-        return res.status(400).json({ message: "No transactions provided" });
+    // Validate the request
+    if (!txs || !Array.isArray(txs) || txs.length === 0) {
+        console.warn("Invalid transaction data received");
+        return res.status(400).json({ message: "Invalid transaction data received" });
     }
 
     const tx = txs[0];
     const { hash, toAddress, value, fromAddress } = tx;
+
+    if (!hash || !toAddress || !value || value === "0") {
+        console.warn("Invalid transaction fields in webhook");
+        return res.status(400).json({ message: "Invalid transaction fields" });
+    }
 
     try {
         const transactionsRef = db.collection("Transactions").doc(hash);
@@ -94,7 +100,7 @@ export const handleDepositWebhook = async (req, res) => {
                     chainId,
                     amountEther,
                     amountNGN,
-                    coinName: getCoinSymbolByChainId(chainId),
+                    coinSymbol: getCoinSymbolByChainId(chainId),
                     amountUSD: usdValue,
                     tokenPriceUSD,
                     status: "pending",
@@ -123,16 +129,50 @@ export const handleDepositWebhook = async (req, res) => {
             console.log("User balance updated:", newBalance);
 
             // // Transfer funds to the central wallet
-            // const privateKey = getWalletPrivateKey(walletIndex);
-            // const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
-            // const signer = new ethers.Wallet(privateKey, provider);
+            const privateKey = getWalletPrivateKey(walletIndex);
+            const coinSymbol = getCoinSymbolByChainId(chainId);
+            const myProvider = providers.find((coin) => coin.name === coinSymbol);
+            const provider = new ethers.JsonRpcProvider(myProvider.url.main);
+            const wallet = ethers.Wallet(privateKey, provider);
+            const walletBalance = await provider.getBalance(wallet.address);
 
-            // const transferTx = await signer.sendTransaction({
-            //     to: CENTRAL_WALLET,
-            //     value,
-            // });
-            // await transferTx.wait();
-            // console.log("Funds transferred to central wallet:", CENTRAL_WALLET);
+            // Fetch current fee data
+            const feeData = await provider.getFeeData();
+
+            // Calculate gas fees explicitly
+            const gasPrice = ethers.formatUnits(feeData.gasPrice, "gwei"); // Convert to Gwei
+            const lowFeeGwei = parseFloat(gasPrice);
+            const mediumFeeGwei = lowFeeGwei + lowFeeGwei / 3;
+            const mediumFeeInWei = ethers.parseUnits(mediumFeeGwei.toFixed(9), "gwei"); // Convert Gwei back to Wei
+
+            console.log(`Gas Prices: Low=${lowFeeGwei} Gwei, Medium=${mediumFeeGwei} Gwei`);
+
+            // Convert GAS_LIMIT to BigInt for compatibility
+            const gasCost = BigInt(GAS_LIMIT) * BigInt(mediumFeeInWei.toString());
+
+            // Calculate the transferable amount (balance - gas cost)
+            const maxTransferableAmount = walletBalance - gasCost;
+
+            if (maxTransferableAmount <= 0n) {
+                throw new Error("Insufficient balance to cover gas fees.");
+            }
+
+            // console.log(`Max Transferable Amount: ${formatEther(maxTransferableAmount)} ${coinSymbol}`);
+
+            // Create and send the transaction
+            try {
+                const tx = await wallet.sendTransaction({
+                    to: CENTRAL_WALLET,
+                    value: maxTransferableAmount, // Send the remaining balance minus gas cost
+                    gasLimit: GAS_LIMIT,
+                    gasPrice: mediumFeeInWei,
+                });
+
+                console.log("Transaction Sent:", tx.hash);
+
+            } catch (error) {
+                console.error("Error sending transaction:", error.message);
+            }
 
             return res.status(200).json({
                 message: "Deposit processed successfully",
