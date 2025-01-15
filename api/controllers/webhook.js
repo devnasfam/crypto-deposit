@@ -1,10 +1,12 @@
 import { config } from "dotenv";
 import { ethers } from "ethers";
 import { db } from "../firebase.js";
+import { getCoinsData } from "../utils/coinsData.js";
+import { getCoinSymbolByChainId } from "../utils/getCoinSymbol.js";
 config();
 
 const mnemonic = process.env.HD_WALLET_PHRASE;
-const CENTRAL_WALLET = '0x41DF1029A8637900D3171Ea0Fb177720FA5ce049';
+const CENTRAL_WALLET = "0x41DF1029A8637900D3171Ea0Fb177720FA5ce049";
 
 // Function to derive the wallet private key from the HD wallet for a given index
 function getWalletPrivateKey(index) {
@@ -14,40 +16,50 @@ function getWalletPrivateKey(index) {
     return wallet.privateKey;
 }
 
-// Mock function to fetch the token price (mocked for testing purposes)
+// Fetch token price from coins data
 async function fetchTokenPrice(chainId) {
-    const mockPrices = {
-        "0xa4b1": 700, // Mock price for BNB in USD
-    };
-    return 700; // Return 0 if the chainId is unsupported
+    try {
+        const coinSymbol = getCoinSymbolByChainId(chainId);
+        const coinsData = await getCoinsData();
+        let coinData = coinsData.find((data) => data.symbol === coinSymbol);
+
+        // Handle special cases for EVM forks
+        if (!coinData && ["ARB_ETH", "BASE_ETH", "BLAST_ETH", "LINEA_ETH"].includes(coinSymbol)) {
+            coinData = coinsData.find((data) => data.symbol === "ETH");
+        }
+
+        if (!coinData) {
+            throw new Error(`Coin data not found for chainId ${chainId}`);
+        }
+
+        return coinData.price_usd;
+    } catch (error) {
+        console.error("Error fetching token price:", error.message);
+        throw new Error("Failed to fetch token price.");
+    }
 }
 
-// Mock conversion rates for testing purposes
-const USD_TO_NGN_RATE = 1650; // 1 USD = 750 NGN
-
-// Webhook handler
+// Webhook handler for deposit processing
 export const handleDepositWebhook = async (req, res) => {
     const { confirmed, chainId, txs } = req.body;
     console.log("Webhook received:", req.body);
-    return res.status(200).json({ message: "Webhook received" });
 
-    if (!txs || txs.length == 0) {
-        console.log("No transactions provided");
+    if (!txs || txs.length === 0) {
         return res.status(400).json({ message: "No transactions provided" });
     }
 
-    const tx = txs[0]; // Handle the first transaction
+    const tx = txs[0];
     const { hash, toAddress, value, fromAddress } = tx;
 
     try {
         const transactionsRef = db.collection("Transactions").doc(hash);
         const transactionDoc = await transactionsRef.get();
-        // Find the user with the matching `toAddress` in the Users collection
         const usersRef = db.collection("Users");
-        const userQuery = await usersRef.where("wallets.EVM.address", "==", String(toAddress).toLowerCase()).get();
 
+        // Find user by toAddress
+        const userQuery = await usersRef.where("wallets.EVM.address", "==", String(toAddress).toLowerCase()).get();
         if (userQuery.empty) {
-            console.log("User not found for address:", toAddress)
+            console.warn("User not found for address:", toAddress);
             return res.status(404).json({ message: "User not found for this address" });
         }
 
@@ -55,9 +67,21 @@ export const handleDepositWebhook = async (req, res) => {
         const userData = userDoc.data();
         const walletIndex = userData.wallets.EVM.walletIndex;
 
-        const date = new Date().toISOString();
+        // Fetch token price
+        const tokenPriceUSD = await fetchTokenPrice(chainId);
+        const usdToNgnRate = (await db.collection("Rates").doc("usdToNgn").get()).data()?.usdDeposit || 1640;
 
-        // Step 1: If `confirmed` is false, log the transaction and set status to pending
+        // Calculate amounts
+        const amountEther = ethers.formatEther(value);
+        const usdValue = parseFloat(amountEther) * tokenPriceUSD;
+        const amountNGN = usdValue * usdToNgnRate;
+
+        console.log("Transaction Details:");
+        console.log(`  Amount (ETH): ${amountEther}`);
+        console.log(`  Amount (USD): ${usdValue}`);
+        console.log(`  Amount (NGN): ${amountNGN}`);
+
+        // Step 1: Handle unconfirmed transactions
         if (!confirmed) {
             if (!transactionDoc.exists) {
                 await transactionsRef.set({
@@ -65,55 +89,48 @@ export const handleDepositWebhook = async (req, res) => {
                     fromAddress,
                     toAddress,
                     value,
-                    userId: userData?.id,
+                    userId: userData.id,
                     chainId,
+                    amountEther,
+                    amountNGN,
+                    amountUSD: usdValue,
+                    tokenPriceUSD,
                     status: "pending",
-                    type: 'crypto-deposit',
-                    date,
-                    createdAt: date,
+                    type: "crypto-deposit",
+                    date: new Date().toISOString(),
+                    createdAt: new Date().toISOString(),
                 });
-                console.log("Transaction logged with pending status:", hash);
+                console.log("Transaction logged as pending:", hash);
             }
             return res.status(200).json({ message: "Transaction logged as pending" });
         }
 
-        // Step 2: If `confirmed` is true, update the transaction and user balance
+        // Step 2: Handle confirmed transactions
         if (confirmed) {
             if (!transactionDoc.exists) {
-                console.log("Pending transaction not found:", hash);
+                console.warn("Pending transaction not found:", hash);
                 return res.status(404).json({ message: "Pending transaction not found" });
             }
 
-            const transactionData = transactionDoc.data();
-
             // Update transaction status to success
-            await transactionsRef.update({ status: "success", confirmedAt: date });
+            await transactionsRef.update({ status: "success", confirmedAt: new Date().toISOString() });
 
-            // Fetch the token price and calculate the converted amount
-            const tokenPriceUSD = await fetchTokenPrice(chainId);
-            const amountEther = ethers.formatEther(value);
-            console.log("Amount received in Ether:", amountEther);
-            const amountUSD = tokenPriceUSD * amountEther;
-            const amountNGN = amountUSD * USD_TO_NGN_RATE;
-
-            // Update the user's balance
+            // Update user balance
             const newBalance = (userData.balance || 0) + amountNGN;
             await usersRef.doc(userDoc.id).update({ balance: newBalance });
+            console.log("User balance updated:", newBalance);
 
-            console.log("User balance updated:", userDoc.id, newBalance);
-
-            // Step 3: Transfer the funds to the central wallet
-            const privateKey = getWalletPrivateKey(walletIndex);
-            // const provider = new ethers.JsonRpcProvider(process.env.RPC_URL); // Use the correct RPC URL
+            // // Transfer funds to the central wallet
+            // const privateKey = getWalletPrivateKey(walletIndex);
+            // const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
             // const signer = new ethers.Wallet(privateKey, provider);
 
-            // const tx = await signer.sendTransaction({
+            // const transferTx = await signer.sendTransaction({
             //     to: CENTRAL_WALLET,
             //     value,
             // });
-            // await tx.wait();
-
-            console.log("Funds transferred to central wallet:", CENTRAL_WALLET);
+            // await transferTx.wait();
+            // console.log("Funds transferred to central wallet:", CENTRAL_WALLET);
 
             return res.status(200).json({
                 message: "Deposit processed successfully",
