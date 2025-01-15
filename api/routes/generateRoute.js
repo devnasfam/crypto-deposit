@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { generate } from "../controllers/generate.js";
+import { generateAddress } from "../controllers/generate.js";
 
 const generateRouter = Router();
 
-generateRouter.post('/', generate);
+generateRouter.post('/', generateAddress);
 
 export default generateRouter;

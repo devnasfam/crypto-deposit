@@ -16,7 +16,7 @@ function deriveWallet(index) {
 }
 
 // Function to generate and assign an address to a user for EVM coins
-export const generateEvmAddress = async (req, res) => {
+export const generateAddress = async (req, res) => {
     const { userId } = req.body;
 
     // Validate inputs
