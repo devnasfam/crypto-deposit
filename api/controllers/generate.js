@@ -73,7 +73,7 @@ export const generateAddress = async (req, res) => {
 
             // Update the user's wallets with the new EVM wallet
             userWallets["EVM"] = {
-                address: wallet.address,
+                address: String(wallet.address).toLowerCase(),
                 walletIndex: index,
             };
 

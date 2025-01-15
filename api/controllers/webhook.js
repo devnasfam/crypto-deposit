@@ -42,7 +42,7 @@ export const handleDepositWebhook = async (req, res) => {
         const transactionDoc = await transactionsRef.get();
         // Find the user with the matching `toAddress` in the Users collection
         const usersRef = db.collection("Users");
-        const userQuery = await usersRef.where("wallets.EVM.address", "==", toAddress).get();
+        const userQuery = await usersRef.where("wallets.EVM.address", "==", String(toAddress).toLowerCase()).get();
 
         if (userQuery.empty) {
             console.log("User not found for address:", toAddress)
