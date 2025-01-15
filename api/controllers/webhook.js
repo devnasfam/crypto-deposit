@@ -29,7 +29,8 @@ const USD_TO_NGN_RATE = 1650; // 1 USD = 750 NGN
 export const handleDepositWebhook = async (req, res) => {
     const { confirmed, chainId, txs } = req.body;
 
-    if (!txs || txs.length === 0) {
+    if (!txs || txs.length == 0) {
+        console.log("No transactions provided");
         return res.status(400).json({ message: "No transactions provided" });
     }
 
@@ -39,6 +40,18 @@ export const handleDepositWebhook = async (req, res) => {
     try {
         const transactionsRef = db.collection("Transactions").doc(hash);
         const transactionDoc = await transactionsRef.get();
+        // Find the user with the matching `toAddress` in the Users collection
+        const usersRef = db.collection("Users");
+        const userQuery = await usersRef.where("wallets.EVM.address", "==", toAddress).get();
+
+        if (userQuery.empty) {
+            console.log("User not found for address:", toAddress)
+            return res.status(404).json({ message: "User not found for this address" });
+        }
+
+        const userDoc = userQuery.docs[0];
+        const userData = userDoc.data();
+        const walletIndex = userData.wallets.EVM.walletIndex;
 
         const date = new Date().toISOString();
 
@@ -50,6 +63,7 @@ export const handleDepositWebhook = async (req, res) => {
                     fromAddress,
                     toAddress,
                     value,
+                    userId: userData?.id,
                     chainId,
                     status: "pending",
                     date,
@@ -63,6 +77,7 @@ export const handleDepositWebhook = async (req, res) => {
         // Step 2: If `confirmed` is true, update the transaction and user balance
         if (confirmed) {
             if (!transactionDoc.exists) {
+                console.log("Pending transaction not found:", hash);
                 return res.status(404).json({ message: "Pending transaction not found" });
             }
 
@@ -76,18 +91,6 @@ export const handleDepositWebhook = async (req, res) => {
             const amountEther = ethers.formatEther(value);
             const amountUSD = tokenPriceUSD * amountEther;
             const amountNGN = amountUSD * USD_TO_NGN_RATE;
-
-            // Find the user with the matching `toAddress` in the Users collection
-            const usersRef = db.collection("Users");
-            const userQuery = await usersRef.where("wallets.EVM.address", "==", toAddress).get();
-
-            if (userQuery.empty) {
-                return res.status(404).json({ message: "User not found for this address" });
-            }
-
-            const userDoc = userQuery.docs[0];
-            const userData = userDoc.data();
-            const walletIndex = userData.wallets.EVM.walletIndex;
 
             // Update the user's balance
             const newBalance = (userData.balance || 0) + amountNGN;
