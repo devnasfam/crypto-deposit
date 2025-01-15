@@ -8,7 +8,7 @@ export const getCoinsData = async () => {
         const json = await response.json();
 
         // List of coins you want to fetch from Firestore
-        const coinsToFetch = ['BNB', 'SOL', 'TON', 'EGLD', 'CORE'];
+        const coinsToFetch = ['BNB', 'SOL', 'TON', 'EGLD', 'CORE', 'MATIC', 'ETH'];
 
         // Loop through each coin and fetch its data from Firestore
         const promises = coinsToFetch.map(async (coinSymbol) => {
