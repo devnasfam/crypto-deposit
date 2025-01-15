@@ -43,6 +43,7 @@ async function fetchTokenPrice(chainId) {
 export const handleDepositWebhook = async (req, res) => {
     const { confirmed, chainId, txs } = req.body;
     console.log("Webhook received:", req.body);
+    return res.status(200).json({ message: "Webhook received" });
 
     if (!txs || txs.length === 0) {
         return res.status(400).json({ message: "No transactions provided" });
