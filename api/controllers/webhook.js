@@ -66,7 +66,7 @@ export const handleDepositWebhook = async (req, res) => {
         // Find user by toAddress
         const userQuery = await usersRef.where("wallets.EVM.address", "==", String(toAddress).toLowerCase()).get();
         if (userQuery.empty) {
-            console.warn("No user found for toAddress. Ignoring non-deposit transaction:", toAddress);
+            console.log("No user found for toAddress. Ignoring non-deposit transaction:", toAddress);
             return res.status(200).json({ message: "Transaction is not an incoming deposit. Ignored." });
         }
 
