@@ -28,6 +28,7 @@ const USD_TO_NGN_RATE = 1650; // 1 USD = 750 NGN
 // Webhook handler
 export const handleDepositWebhook = async (req, res) => {
     const { confirmed, chainId, txs } = req.body;
+    console.log("Webhook received:", req.body);
 
     if (!txs || txs.length == 0) {
         console.log("No transactions provided");
