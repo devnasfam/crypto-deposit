@@ -97,12 +97,12 @@ export const generateAddress = async (req, res) => {
             // Increment the shared index for EVM coins and update Firestore
             transaction.set(indexRef, { index: index + 1 });
             transaction.update(userRef, { wallets: userWallets });
+        });
 
-            // Respond with the new wallet
-            res.status(200).json({
-                message: `Wallet address generated successfully!`,
-                wallet: userWallets["EVM"],
-            });
+        // Respond with the new wallet
+        return res.status(200).json({
+            message: `Wallet address generated successfully!`,
+            wallet: userWallets["EVM"],
         });
     } catch (error) {
         console.error("Error generating EVM wallet:", error.message);
