@@ -141,33 +141,34 @@ export const handleDepositWebhook = async (req, res) => {
             if (!feeData.gasPrice) {
                 throw new Error("Failed to retrieve gas price from provider.");
             }
-            // Calculate gas fees explicitly
-            const gasPrice = ethers.formatUnits(feeData.gasPrice, "gwei"); // Convert to Gwei
-            const lowFeeGwei = parseFloat(gasPrice);
-            const mediumFeeGwei = lowFeeGwei + lowFeeGwei / 2; // 1.5x the low fee  (e.g., 1 Gwei -> 1.5 Gwei)
-            const mediumFeeInWei = ethers.parseUnits(mediumFeeGwei.toFixed(9), "wei"); // Convert Gwei back to Wei
 
-            console.log(`Gas Prices: Low=${lowFeeGwei} Gwei, Medium=${mediumFeeGwei} Gwei`);
+            // Convert gas price from Wei to Gwei
+            const gasPriceGwei = Number(ethers.formatUnits(feeData.gasPrice, "gwei"));
+            const mediumFeeGwei = gasPriceGwei + gasPriceGwei / 2; // 1.5x the base fee
+            const mediumFeeInWei = ethers.parseUnits(mediumFeeGwei.toFixed(9), "gwei"); // Convert back to Wei
 
-                // Estimate the required gas limit
+            console.log(`Gas Prices: Low=${gasPriceGwei} Gwei, Medium=${mediumFeeGwei} Gwei`);
+
+            // Estimate the required gas limit
             const estimatedGasLimit = await provider.estimateGas({
                 to: CENTRAL_WALLET,
                 value: walletBalance,
             });
-
             console.log(`Estimated Gas Limit: ${estimatedGasLimit}`);
 
-            // Convert GAS_LIMIT to BigInt for compatibility
-            const gasCost = BigInt(GAS_LIMIT) * BigInt(mediumFeeInWei.toString());
+            // Calculate gas cost explicitly
+            const gasCost = BigInt(estimatedGasLimit.toString()) * BigInt(mediumFeeInWei.toString());
 
-            // Calculate the transferable amount (balance - gas cost)
-            const maxTransferableAmount = walletBalance - gasCost;
+            // Calculate the maximum transferable amount (balance - gas cost)
+            const walletBalanceBigInt = BigInt(walletBalance.toString());
+            const maxTransferableAmount = walletBalanceBigInt - gasCost;
 
+            // Ensure sufficient balance for the transaction
             if (maxTransferableAmount <= 0n) {
                 throw new Error("Insufficient balance to cover gas fees.");
             }
 
-            // console.log(`Max Transferable Amount: ${formatEther(maxTransferableAmount)} ${coinSymbol}`);
+            console.log(`Max Transferable Amount: ${ethers.formatEther(maxTransferableAmount)} ETH`);
 
             // Create and send the transaction
             try {
@@ -180,9 +181,13 @@ export const handleDepositWebhook = async (req, res) => {
 
                 console.log("Transaction Sent:", tx.hash);
 
+                // Wait for the transaction confirmation
+                const receipt = await tx.wait();
+                console.log("Transaction Confirmed:", receipt.transactionHash);
             } catch (error) {
                 console.error("Error sending transaction:", error.message);
             }
+
 
             return res.status(200).json({
                 message: "Deposit processed successfully",
