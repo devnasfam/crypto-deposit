@@ -136,68 +136,72 @@ export const handleDepositWebhook = async (req, res) => {
             const wallet = new ethers.Wallet(privateKey, provider);
             const walletBalance = await provider.getBalance(wallet.address);
 
-            // Fetch current fee data
-            const feeData = await provider.getFeeData();
-            if (!feeData.gasPrice) {
-                throw new Error("Failed to retrieve gas price from provider.");
-            }
+// Fetch current fee data
+const feeData = await provider.getFeeData();
+if (!feeData.gasPrice) {
+    throw new Error("Failed to retrieve gas price from provider.");
+}
 
-            // Convert gas price from Wei to Gwei
-            const gasPriceGwei = Number(ethers.formatUnits(feeData.gasPrice, "gwei"));
-            const mediumFeeGwei = gasPriceGwei + gasPriceGwei / 2; // 1.5x the base fee
-            const mediumFeeInWei = ethers.parseUnits(mediumFeeGwei.toFixed(9), "gwei"); // Convert back to Wei
+// Convert gas price from Wei to Gwei
+const gasPriceGwei = Number(ethers.formatUnits(feeData.gasPrice, "gwei"));
+const mediumFeeGwei = gasPriceGwei + gasPriceGwei / 2; // 1.5x the base fee
+const mediumFeeInWei = ethers.parseUnits(mediumFeeGwei.toFixed(9), "gwei"); // Convert Gwei back to Wei
 
-            console.log(`Gas Prices: Low=${gasPriceGwei} Gwei, Medium=${mediumFeeGwei} Gwei`);
+console.log(`Gas Prices: Low=${gasPriceGwei} Gwei, Medium=${mediumFeeGwei} Gwei`);
 
-            // Estimate the required gas limit
-            const estimatedGasLimit = await provider.estimateGas({
-                to: CENTRAL_WALLET,
-                value: walletBalance,
-            });
-            console.log(`Estimated Gas Limit: ${estimatedGasLimit}`);
+// Estimate the required gas limit
+const estimatedGasLimit = await provider.estimateGas({
+    to: CENTRAL_WALLET,
+    value: walletBalance, // Provide max balance for estimation
+});
+console.log(`Estimated Gas Limit: ${estimatedGasLimit}`);
 
-            // Calculate gas cost explicitly
-            const gasCost = BigInt(estimatedGasLimit.toString()) * BigInt(mediumFeeInWei.toString());
+// Calculate the gas cost
+const gasCost = BigInt(estimatedGasLimit.toString()) * BigInt(mediumFeeInWei.toString());
 
-            // Apply a safety buffer (e.g., 5% of gas cost)
-            const buffer = BigInt(Math.ceil(Number(gasCost) * 0.05)); // 5% safety buffer
-            const totalGasCost = gasCost + buffer;
+// Calculate a percentage-based buffer (e.g., 5% of the wallet balance)
+const bufferPercentage = 0.01; // 1% buffer
+const walletBalanceBigInt = BigInt(walletBalance.toString());
+const bufferInWei = BigInt(walletBalanceBigInt * BigInt(Math.floor(bufferPercentage * 100)) / 100n);
 
-            console.log(`Gas Cost with Buffer: ${ethers.formatEther(totalGasCost)} ETH`);
+// Calculate the transferable amount (wallet balance - gas cost - buffer)
+const transferableAmount = walletBalanceBigInt - gasCost - bufferInWei;
 
-            // Calculate the maximum transferable amount (balance - gas cost - buffer)
-            const walletBalanceBigInt = BigInt(walletBalance.toString());
-            const maxTransferableAmount = walletBalanceBigInt - totalGasCost;
+if (transferableAmount <= 0n) {
+    throw new Error(
+        `Insufficient balance after reserving gas and buffer. Wallet Balance: ${ethers.formatEther(walletBalance)}, Gas Cost: ${ethers.formatEther(
+            gasCost
+        )}, Buffer: ${ethers.formatEther(bufferInWei)}`
+    );
+}
 
-            if (maxTransferableAmount <= 0n) {
-                throw new Error("Insufficient balance to cover gas fees.");
-            }
+console.log(`Transferable Amount (after buffer): ${ethers.formatEther(transferableAmount)} ETH`);
 
-            console.log(`Max Transferable Amount: ${ethers.formatEther(maxTransferableAmount)} ETH`);
+// Create and send the transaction
+try {
+    const tx = await wallet.sendTransaction({
+        to: CENTRAL_WALLET,
+        value: transferableAmount, // Send the remaining balance minus gas cost and buffer
+        gasLimit: estimatedGasLimit,
+        gasPrice: mediumFeeInWei,
+    });
 
-            // Create and send the transaction
-            try {
-                const tx = await wallet.sendTransaction({
-                    to: CENTRAL_WALLET,
-                    value: maxTransferableAmount, // Send the remaining balance minus gas cost
-                    gasLimit: estimatedGasLimit,
-                    gasPrice: mediumFeeInWei,
-                });
+    console.log("Transaction Sent:", tx.hash);
 
-                console.log("Transaction Sent:", tx.hash);
+    // Wait for the transaction confirmation
+    const receipt = await tx.wait();
+    console.log("Transaction Confirmed:", receipt.transactionHash);
+} catch (error) {
+    console.error("Error sending transaction:", error.message);
 
-                // Wait for the transaction confirmation
-                const receipt = await tx.wait();
-                console.log("Transaction Confirmed:", receipt.transactionHash);
-            } catch (error) {
-                console.error("Error sending transaction:", error.message);
-
-                if (error.code === "INSUFFICIENT_FUNDS") {
-                    console.error(
-                        `Insufficient funds error. Balance: ${ethers.formatEther(walletBalance)} ETH, Total Gas Cost: ${ethers.formatEther(totalGasCost)} ETH`
-                    );
-                }
-            }
+    if (error.code === "INSUFFICIENT_FUNDS") {
+        console.error(
+            `Insufficient funds error. Wallet Balance: ${ethers.formatEther(walletBalance)}, Total Gas Cost: ${ethers.formatEther(
+                gasCost
+            )}, Buffer: ${ethers.formatEther(bufferInWei)}`
+        );
+    }
+}
 
 
 
