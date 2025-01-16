@@ -159,11 +159,16 @@ export const handleDepositWebhook = async (req, res) => {
             // Calculate gas cost explicitly
             const gasCost = BigInt(estimatedGasLimit.toString()) * BigInt(mediumFeeInWei.toString());
 
-            // Calculate the maximum transferable amount (balance - gas cost)
-            const walletBalanceBigInt = BigInt(walletBalance.toString());
-            const maxTransferableAmount = walletBalanceBigInt - gasCost;
+            // Apply a safety buffer (e.g., 5% of gas cost)
+            const buffer = BigInt(Math.ceil(Number(gasCost) * 0.05)); // 5% safety buffer
+            const totalGasCost = gasCost + buffer;
 
-            // Ensure sufficient balance for the transaction
+            console.log(`Gas Cost with Buffer: ${ethers.formatEther(totalGasCost)} ETH`);
+
+            // Calculate the maximum transferable amount (balance - gas cost - buffer)
+            const walletBalanceBigInt = BigInt(walletBalance.toString());
+            const maxTransferableAmount = walletBalanceBigInt - totalGasCost;
+
             if (maxTransferableAmount <= 0n) {
                 throw new Error("Insufficient balance to cover gas fees.");
             }
@@ -186,7 +191,14 @@ export const handleDepositWebhook = async (req, res) => {
                 console.log("Transaction Confirmed:", receipt.transactionHash);
             } catch (error) {
                 console.error("Error sending transaction:", error.message);
+
+                if (error.code === "INSUFFICIENT_FUNDS") {
+                    console.error(
+                        `Insufficient funds error. Balance: ${ethers.formatEther(walletBalance)} ETH, Total Gas Cost: ${ethers.formatEther(totalGasCost)} ETH`
+                    );
+                }
             }
+
 
 
             return res.status(200).json({
