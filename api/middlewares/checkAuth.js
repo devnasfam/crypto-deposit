@@ -8,6 +8,7 @@ export const checkAuth = async (req, res, next) => {
     const authHeader = req.headers.authorization; // Auth token from client
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        console.log("Unauthorized: Missing or invalid token");
         return res.status(401).json({ message: "Unauthorized: Missing or invalid token" });
     }
 
@@ -20,6 +21,7 @@ export const checkAuth = async (req, res, next) => {
         // Ensure the user ID matches the one from the decoded token
         // Ensure the userId from the request matches the decoded UID
         if (userId && decodedToken.uid !== userId) {
+            console.log("Forbidden: User ID mismatch");
             return res.status(403).json({ message: "Forbidden: User ID mismatch" });
         }
 
@@ -28,10 +30,12 @@ export const checkAuth = async (req, res, next) => {
         console.error("Error verifying Firebase ID token:", error);
 
         if (error.code === "auth/id-token-expired") {
+            console.log("Unauthorized: Token expired");
             return res.status(401).json({ message: "Unauthorized: Token expired" });
         }
 
         if (error.code === "auth/argument-error") {
+            console.log("Bad Request: Invalid token");
             return res.status(400).json({ message: "Bad Request: Invalid token" });
         }
 
