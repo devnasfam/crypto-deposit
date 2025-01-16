@@ -145,7 +145,7 @@ export const handleDepositWebhook = async (req, res) => {
             const gasPrice = ethers.formatUnits(feeData.gasPrice, "gwei"); // Convert to Gwei
             const lowFeeGwei = parseFloat(gasPrice);
             const mediumFeeGwei = lowFeeGwei + lowFeeGwei / 2; // 1.5x the low fee  (e.g., 1 Gwei -> 1.5 Gwei)
-            const mediumFeeInWei = ethers.parseUnits(mediumFeeGwei.toFixed(9), "gwei"); // Convert Gwei back to Wei
+            const mediumFeeInWei = ethers.parseUnits(mediumFeeGwei.toFixed(9), "wei"); // Convert Gwei back to Wei
 
             console.log(`Gas Prices: Low=${lowFeeGwei} Gwei, Medium=${mediumFeeGwei} Gwei`);
 
