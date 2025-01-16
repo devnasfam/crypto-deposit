@@ -88,6 +88,7 @@ export const handleDepositWebhook = async (req, res) => {
         console.log(`  Amount: ${amountEther} ${getCoinSymbolByChainId(chainId)}`);
         console.log(`  Amount (USD): ${usdValue}`);
         console.log(`  Amount (NGN): ${amountNGN}`);
+        console.log(`  Address: ${toAddress}`);
 
         // Step 1: Handle unconfirmed transactions
         if (!confirmed) {
