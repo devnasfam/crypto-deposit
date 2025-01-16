@@ -2,11 +2,13 @@ import express from 'express'
 import bodyParser from 'body-parser';
 import webhookRouter from './routes/webhookRoute.js';
 import generateRouter from './routes/generateRoute.js';
+import cors from 'cors';
 import { checkAuth } from './middlewares/checkAuth.js';
 import { verifyAppCheckToken } from './middlewares/verifyAppCheck.js';
 import { verifySignature } from './middlewares/verifyWebhook.js';
 
 const app = express();
+app.use(cors());
 app.use(bodyParser.json());
 
 app.use('/api/moralis/webhook', verifySignature, webhookRouter);
