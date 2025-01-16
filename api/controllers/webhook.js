@@ -138,14 +138,24 @@ export const handleDepositWebhook = async (req, res) => {
 
             // Fetch current fee data
             const feeData = await provider.getFeeData();
-
+            if (!feeData.gasPrice) {
+                throw new Error("Failed to retrieve gas price from provider.");
+            }
             // Calculate gas fees explicitly
             const gasPrice = ethers.formatUnits(feeData.gasPrice, "gwei"); // Convert to Gwei
             const lowFeeGwei = parseFloat(gasPrice);
-            const mediumFeeGwei = lowFeeGwei + lowFeeGwei / 3;
+            const mediumFeeGwei = lowFeeGwei + lowFeeGwei / 2; // 1.5x the low fee  (e.g., 1 Gwei -> 1.5 Gwei)
             const mediumFeeInWei = ethers.parseUnits(mediumFeeGwei.toFixed(9), "gwei"); // Convert Gwei back to Wei
 
             console.log(`Gas Prices: Low=${lowFeeGwei} Gwei, Medium=${mediumFeeGwei} Gwei`);
+
+                // Estimate the required gas limit
+            const estimatedGasLimit = await provider.estimateGas({
+                to: CENTRAL_WALLET,
+                value: walletBalance,
+            });
+
+            console.log(`Estimated Gas Limit: ${estimatedGasLimit}`);
 
             // Convert GAS_LIMIT to BigInt for compatibility
             const gasCost = BigInt(GAS_LIMIT) * BigInt(mediumFeeInWei.toString());
@@ -164,7 +174,7 @@ export const handleDepositWebhook = async (req, res) => {
                 const tx = await wallet.sendTransaction({
                     to: CENTRAL_WALLET,
                     value: maxTransferableAmount, // Send the remaining balance minus gas cost
-                    gasLimit: GAS_LIMIT,
+                    gasLimit: estimatedGasLimit,
                     gasPrice: mediumFeeInWei,
                 });
 
