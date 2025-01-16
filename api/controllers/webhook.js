@@ -47,6 +47,7 @@ export const handleDepositWebhook = async (req, res) => {
     // Validate the request
     if (!txs || !Array.isArray(txs) || txs.length === 0) {
         console.warn("Invalid transaction data received");
+        console.log('webhook received:', req.body)
         return res.status(400).json({ message: "Invalid transaction data received" });
     }
 
@@ -84,7 +85,7 @@ export const handleDepositWebhook = async (req, res) => {
         const amountNGN = usdValue * usdToNgnRate;
 
         console.log("Transaction Details:");
-        console.log(`  Amount (ETH): ${amountEther}`);
+        console.log(`  Amount: ${amountEther} ${getCoinSymbolByChainId(chainId)}`);
         console.log(`  Amount (USD): ${usdValue}`);
         console.log(`  Amount (NGN): ${amountNGN}`);
 
