@@ -102,7 +102,6 @@ export const generateAddress = async (req, res) => {
         // Respond with the new wallet
         return res.status(200).json({
             message: `Wallet address generated successfully!`,
-            wallet: userWallets["EVM"],
         });
     } catch (error) {
         console.error("Error generating EVM wallet:", error.message);
