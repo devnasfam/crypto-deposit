@@ -56,6 +56,7 @@ export const handleDepositWebhook = async (req, res) => {
 
     if (!hash || !toAddress || !value || value === "0") {
         console.warn("Invalid transaction fields in webhook");
+        console.log('webhook received:', req.body);
         return res.status(400).json({ message: "Invalid transaction fields" });
     }
 
