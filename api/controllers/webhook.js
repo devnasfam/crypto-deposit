@@ -43,7 +43,7 @@ async function fetchTokenPrice(chainId) {
 // Webhook handler for deposit processing
 export const handleDepositWebhook = async (req, res) => {
     const { confirmed, chainId, txs } = req.body;
-    // console.log("Webhook received:", req.body);
+    console.log("Webhook received:", req.body);
     // Validate the request
     if (!txs || !Array.isArray(txs) || txs.length === 0) {
         console.warn("Invalid transaction data received");
