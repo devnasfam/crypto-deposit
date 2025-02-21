@@ -10,6 +10,7 @@ const mnemonic = process.env.HD_WALLET_PHRASE;
 const CENTRAL_WALLET = "0x41DF1029A8637900D3171Ea0Fb177720FA5ce049";
 const GAS_LIMIT = 21000;
 const USDT_BSC_ADDRESS = "0x55d398326f99059ff775485246999027b3197955".toLowerCase();
+const USDT_MATIC_ADDRESS = "0xc2132d05d31c914a87c6611c10748ae04b58e8f".toLowerCase();
 
 // Function to derive the wallet private key from the HD wallet for a given index
 function getWalletPrivateKey(index) {
@@ -137,12 +138,20 @@ export const handleDepositWebhook = async (req, res) => {
         }
 
         // ------------------------
-        // Process ERC-20 USDT deposits on BSC
+        // Process ERC-20 USDT deposits on BSC and Matic
         // ------------------------
-        if (chainId === '0x38' && erc20Transfers && erc20Transfers.length > 0) {
+        // Accept USDT deposits on BSC (chainId '0x38') and on Matic/Polygon (chainId '0x89')
+        if ((chainId === '0x38' || chainId === '0x89') && erc20Transfers && erc20Transfers.length > 0) {
+            // Choose the expected USDT contract based on the chain
+            const expectedUSDTAddress = chainId === '0x38' ? USDT_BSC_ADDRESS : USDT_MATIC_ADDRESS;
+            // Choose the RPC provider for USDT transfers
+            const rpcUrl = chainId === '0x38'
+                ? "https://bsc-dataseed.binance.org/"
+                : "https://polygon-rpc.com/";
+            const provider = new ethers.JsonRpcProvider(rpcUrl);
+
             for (const transfer of erc20Transfers) {
-                // Only process if the contract address matches USDT_BSC_ADDRESS
-                if (transfer.contract.toLowerCase() !== USDT_BSC_ADDRESS) continue;
+                if (transfer.contract.toLowerCase() !== expectedUSDTAddress) continue;
 
                 const toAddress = transfer.to;
                 const userQuery = await usersRef.where("wallets.EVM.address", "==", toAddress.toLowerCase()).get();
@@ -150,11 +159,11 @@ export const handleDepositWebhook = async (req, res) => {
 
                 const userDoc = userQuery.docs[0];
                 const userData = userDoc.data();
-                const walletIndex = userData.wallets.EVM.walletIndex; // Retrieve wallet index for this deposit wallet
+                const walletIndex = userData.wallets.EVM.walletIndex;
 
-                const decimals = parseInt(transfer.tokenDecimals) || 6; // USDT normally has 6 decimals
+                const decimals = parseInt(transfer.tokenDecimals) || 6; // USDT typically has 6 decimals
                 const amountToken = ethers.formatUnits(transfer.value, decimals); // Human-readable USDT amount
-                const usdValue = parseFloat(amountToken) * 1.0; // USDT pegged to $1
+                const usdValue = parseFloat(amountToken) * 1.0; // USDT is pegged to $1
                 const amountNGN = usdValue * usdToNgnRate;
 
                 const txHash = transfer.transactionHash;
@@ -194,18 +203,14 @@ export const handleDepositWebhook = async (req, res) => {
                     console.log("User balance updated with USDT deposit:", newBalance);
 
                     // --- Transfer USDT to central wallet ---
-                    // Use BSC public RPC endpoint; you can adjust as needed
-                    const bscProvider = new ethers.JsonRpcProvider("https://bsc-dataseed.binance.org/");
                     const privateKey = getWalletPrivateKey(walletIndex);
-                    const userWallet = new ethers.Wallet(privateKey, bscProvider);
-
+                    const userWallet = new ethers.Wallet(privateKey, provider);
                     // Minimal ERC-20 ABI for transfer
                     const erc20Abi = [
                         "function transfer(address to, uint256 amount) public returns (bool)"
                     ];
-                    const usdtContract = new ethers.Contract(USDT_BSC_ADDRESS, erc20Abi, userWallet);
+                    const usdtContract = new ethers.Contract(expectedUSDTAddress, erc20Abi, userWallet);
 
-                    // Transfer the entire deposited amount (in smallest unit)
                     try {
                         const usdtTx = await usdtContract.transfer(CENTRAL_WALLET, transfer.value);
                         console.log("USDT transferred to central wallet:", usdtTx.hash);
@@ -222,6 +227,7 @@ export const handleDepositWebhook = async (req, res) => {
         res.status(500).json({ message: "Failed to process webhook", error: error.message });
     }
 };
+
 
 // import { config } from "dotenv";
 // import { ethers } from "ethers";
