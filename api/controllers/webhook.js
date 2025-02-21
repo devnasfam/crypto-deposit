@@ -10,7 +10,7 @@ const mnemonic = process.env.HD_WALLET_PHRASE;
 const CENTRAL_WALLET = "0x41DF1029A8637900D3171Ea0Fb177720FA5ce049";
 const GAS_LIMIT = 21000;
 const USDT_BSC_ADDRESS = "0x55d398326f99059ff775485246999027b3197955".toLowerCase();
-const USDT_MATIC_ADDRESS = "0xc2132d05d31c914a87c6611c10748ae04b58e8f".toLowerCase();
+const USDT_MATIC_ADDRESS = "0xc2132d05d31c914a87c6611c10748aeb04b58e8f".toLowerCase();
 
 // Function to derive the wallet private key from the HD wallet for a given index
 function getWalletPrivateKey(index) {
