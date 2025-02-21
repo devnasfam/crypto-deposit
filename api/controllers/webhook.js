@@ -81,6 +81,7 @@ export const handleDepositWebhook = async (req, res) => {
                         value,
                         userId: userData.id,
                         chainId,
+                        tokenName: getCoinSymbolByChainId(chainId),
                         amountEther,
                         amountNGN,
                         coinSymbol: getCoinSymbolByChainId(chainId),
