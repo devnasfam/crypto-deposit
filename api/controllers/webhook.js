@@ -39,7 +39,7 @@ async function fetchTokenPrice(chainId, isERC20 = false) {
 
 export const handleDepositWebhook = async (req, res) => {
     const { confirmed, chainId, txs = [], erc20Transfers = [] } = req.body;
-
+    console.log("Webhook received:", req.body);
     // Validate that at least one transaction or ERC-20 transfer exists
     if ((!txs || txs.length === 0) && (!erc20Transfers || erc20Transfers.length === 0)) {
         console.warn("Invalid transaction data received");
