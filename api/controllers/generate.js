@@ -57,6 +57,9 @@ export const generateAddress = async (req, res) => {
         return res.status(400).json({ message: "User ID is required" });
     }
 
+    // Temporarily unavailable
+    return res.status(503).json({ message: "Service temporarily unavailable" });
+
     try {
         const indexRef = db.collection("walletIndex").doc("EVM"); // Shared index for EVM coins
         const userRef = db.collection("Users").doc(userId);
